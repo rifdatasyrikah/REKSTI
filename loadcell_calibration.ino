@@ -47,3 +47,6 @@ void loop() {
 }
 
 //calibration factor will be the (reading)/(known weight)
+//hasil pengukuran 
+// calibration factor dispenser (food stock) = -161.015
+// calibration factor feeder (wadah makan) = -167.843
