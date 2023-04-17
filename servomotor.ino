@@ -14,6 +14,6 @@ void setup() {
 
 void loop() {
 
-  myservo.write(0); // nutup
-  myservo.write(180); //buka
+  myservo.write(180); // nutup
+  myservo.write(0); //buka
 }
