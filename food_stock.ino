@@ -100,7 +100,7 @@ void setup()
   
   // Init and get the time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  printLocalTime();
+  // printLocalTime();
 
   // Setup a function to be called every second
   timer.setInterval(1000L, myTimerEvent);
