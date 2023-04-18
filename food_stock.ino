@@ -1,9 +1,3 @@
-/*************************************************************
-
-  This is a simple demo of sending and receiving some data.
-  Be sure to check out other examples!
- *************************************************************/
-
 /* Fill-in information from Blynk Device Info here */
 #define BLYNK_TEMPLATE_ID "TMPL603bYUN0L"
 #define BLYNK_TEMPLATE_NAME "Food Stock"
@@ -38,6 +32,38 @@ const int LOADCELL_DOUT_PIN = 16;
 const int LOADCELL_SCK_PIN = 4;
 HX711 scale;
 
+double reading;
+
+void setup()
+{
+  // Debug console
+  Serial.begin(115200);
+
+  // setup load cell
+  rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
+  Serial.println("Initializing the scale");
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(-161.015);
+  delay(1000);
+  scale.tare();               // reset the scale to 0
+  Serial.println("scale ready");
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  // Init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  
+  // Setup a function to be called every second
+  timer.setInterval(1000L, myTimerEvent);
+}
+
+void loop()
+{
+  Blynk.run();
+  timer.run();
+}
+
+// FUNCTIONS ------------------------------------------------------------------
 // This function is called every time the Virtual Pin 0 state changes
 BLYNK_WRITE(V0)
 {
@@ -46,16 +72,24 @@ BLYNK_WRITE(V0)
   
   if (value) {
     scale.power_up();
-    Blynk.virtualWrite(V1, (double) scale.get_units());
-    Serial.print(scale.get_units(), 1);
-    // Blynk.virtualWrite()
-  } else {
+    reading = (double) scale.get_units();
+    Blynk.virtualWrite(V1, reading);
+    Serial.println(reading, 1);
+    if (reading <=50.0) {
+      Blynk.logEvent("stock_alert", "Stock less than 50g, please restock soon");
+    }
     scale.power_down();
-  }
+  } 
 }
 
 // This function is called every time the device is connected to the Blynk.Cloud
 BLYNK_CONNECTED() {
+  Blynk.syncAll();   
+}
+
+BLYNK_WRITE(V1) {
+  reading = param.asDouble();
+  Serial.println(reading, 1);
 }
 
 // This function sends Arduino's uptime every second to Virtual Pin 2.
@@ -68,50 +102,9 @@ void myTimerEvent()
     Serial.println("Failed to obtain time");
     return;
   }
-
-  //convert time to string
   char time_str[80]; 
   strftime(time_str,sizeof(time_str),"%A, %d %B %Y %H:%M:%S",&timeinfo);
   std::string str(time_str);
 
-  // std::cout << str;
-
   Blynk.virtualWrite(V2, time_str);
-}
-
-void setup()
-{
-  // Debug console
-  Serial.begin(115200);
-
-  // setup load cell
-  rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
-  Serial.println("Initializing the scale");
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-  scale.set_scale(-161.015);
-  // delay(1000);
-  scale.tare();               // reset the scale to 0
-  Serial.println("scale ready");
-
-  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
-  // You can also specify server:
-  //Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass, "blynk.cloud", 80);
-  //Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass, IPAddress(192,168,1,100), 8080);
-  
-  // Init and get the time
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  // printLocalTime();
-
-  // Setup a function to be called every second
-  timer.setInterval(1000L, myTimerEvent);
-}
-
-void loop()
-{
-  // delay(1000);
-  Blynk.run();
-  timer.run();
-  // You can inject your own code or combine it with other sketches.
-  // Check other examples on how to communicate with Blynk. Remember
-  // to avoid delay() function!
 }
