@@ -25,11 +25,14 @@ int pagi_hour, pagi_min;
 int siang_hour, siang_min;
 int malam_hour, malam_min;
 bool stopfeeding = false;
+bool feednow = false;
 
 // timer ---------------------------------------------
 BlynkTimer timer;
 BlynkTimer timer2;
 unsigned long interval = 10000;
+// unsigned long end; 
+// unsigned long start;
 
 //servo motor -----------------------------------------
 #include <Servo.h>
@@ -69,23 +72,27 @@ void loop() {
   // Serial.println(isFeedingTime());
   // Serial.print("is stop feeding?");
   // Serial.println(stopfeeding);
-
-  if (isFeedingTime() && stopfeeding==false) {
+  
+  if ((isFeedingTime() && stopfeeding) || feednow) {
     Blynk.virtualWrite(V1, "Waktunya makanan diberikan");
     myservo.write(open_cover);
     unsigned long time_now = millis();
     while(millis() < time_now + interval){
         //wait approx. [interval] ms
+        timer.run();
     }
     myservo.write(close_cover);
     Blynk.virtualWrite(V1, "Selesai memberikan makanan");
     time_now = millis();
     while(millis() < time_now + interval){
         //wait approx. [interval] ms
+        timer.run();
     }
     Blynk.virtualWrite(V1, "Menunggu waktu makan berikutnya");
     stopfeeding = true;
+    feednow = false;
   }
+  
   if (!isFeedingTime())  {
     stopfeeding = false;
   }
@@ -131,6 +138,15 @@ void myTimerEvent2()
 }
 
 //------------------------------FUNCTION WHEN VIRTUAL PIN STATE CHANGES----------------------------
+
+// This function is called every time the Virtual Pin 3 state changes (feednow)
+BLYNK_WRITE(V0) {
+  int value = param.asInt();
+  if (value==1) {
+    feednow = true;
+  }
+}
+
 
 // This function is called every time the Virtual Pin 3 state changes (jadwal makan pagi)
 BLYNK_WRITE(V3)
