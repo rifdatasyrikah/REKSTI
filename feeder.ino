@@ -39,8 +39,28 @@ const int pin_servo = 13;
 const int close_cover = 180;
 const int open_cover = 0;
 
+// load cell ------------
+#include <Arduino.h>
+#include "HX711.h"
+#include "soc/rtc.h"
+
+const int LOADCELL_DOUT_PIN = 16;
+const int LOADCELL_SCK_PIN = 4;
+HX711 scale;
+
+double reading;
+
 void setup() {
   Serial.begin(115200);
+
+  // setup load cell
+  rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
+  Serial.println("Initializing the scale");
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(-167.843);
+  delay(1000);
+  scale.tare();               // reset the scale to 0
+  Serial.println("scale ready");
 
   //setup servo motor
   myservo.attach(pin_servo);  // attaches the servo on pin 13 to the servo object
@@ -60,28 +80,49 @@ void loop() {
   Blynk.run();
   timer.run();
 
-  if ((isFeedingTime() && !stopfeeding) || feednow) {    
-    Blynk.virtualWrite(V1, "Waktunya makanan diberikan");
-    myservo.write(open_cover);
-    unsigned long time_now = millis();
-    while(millis() < time_now + interval){
-        //wait approx. [interval] ms
-        timer.run();
-    }
-    myservo.write(close_cover);
-    Blynk.virtualWrite(V1, "Selesai memberikan makanan");
-    time_now = millis();
-    while(millis() < time_now + interval){
-        //wait approx. [interval] ms
-        timer.run();
+  if ((isFeedingTime() && !stopfeeding) || feednow) {
+    if (scale.get_units() >= 20) {
+      unsigned long time_now = millis();
+      while(millis() < time_now + interval){
+          //wait approx. [interval] ms
+          Blynk.virtualWrite(V7, "dibatalkan (wadah masih terisi)");
+          timer.run();
+      }      
+    } else {
+      unsigned long time_now = millis();
+      while(millis() < time_now + interval){
+          //wait approx. [interval] ms
+          Blynk.virtualWrite(V6, "-");
+          Blynk.virtualWrite(V7, "berhasil");
+          Blynk.virtualWrite(V1, "Waktunya makanan diberikan");
+          myservo.write(open_cover);
+          timer.run();
+      }
+      time_now = millis();
+      while(millis() < time_now + interval){
+          //wait approx. [interval] ms
+          myservo.write(close_cover);
+          Blynk.virtualWrite(V1, "Selesai memberikan makanan");
+          timer.run();
+      }
+      Blynk.virtualWrite(V1, "Menunggu waktu makan berikutnya");
+      Blynk.virtualWrite(V7, "-");
+      stopfeeding = true;
+      feednow = false;
     }
     Blynk.virtualWrite(V1, "Menunggu waktu makan berikutnya");
+    Blynk.virtualWrite(V7, "-");
     stopfeeding = true;
     feednow = false;
   }
   
   if (!isFeedingTime())  {
     stopfeeding = false;
+    checkWadah();
+  }
+
+  if (!feednow) {
+    checkWadah();    
   }
 }
 
@@ -89,6 +130,8 @@ void loop() {
 BLYNK_CONNECTED() { 
   // when device is conneceted to Blynk Cloud... 
   Blynk.syncAll(); 
+  Blynk.virtualWrite(V7, "-");
+  checkWadah();
   // request the values for all datastreams that has "sync" setting enabled 
 }
 
@@ -160,4 +203,12 @@ bool isFeedingTime() {
   }
 
   return isfeeding;
+}
+
+void checkWadah() {
+  if (scale.get_units() >= 20) {
+    Blynk.virtualWrite(V6, "masih terisi (belum dimakan)");      
+  } else {
+    Blynk.virtualWrite(V6, "kosong (sudah dimakan)");
+  }
 }
