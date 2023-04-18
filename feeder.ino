@@ -29,10 +29,7 @@ bool feednow = false;
 
 // timer ---------------------------------------------
 BlynkTimer timer;
-BlynkTimer timer2;
 unsigned long interval = 10000;
-// unsigned long end; 
-// unsigned long start;
 
 //servo motor -----------------------------------------
 #include <Servo.h>
@@ -53,27 +50,17 @@ void setup() {
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
   // Setup a function myTimerEvent to be called every second
   timer.setInterval(1000L, myTimerEvent);
-  // Setup a function myTimerEvent2 to be called every 5 second
-  timer.setInterval(5000L, myTimerEvent2);
   
   //setup time: Init and get the time (ESP32 internal RTC)
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  // printLocalTime();
 }
 
 void loop() {
   //run blynk and timer  
   Blynk.run();
   timer.run();
-  timer2.run();
 
-  // untuk debug
-  // Serial.print("is feeding time?");
-  // Serial.println(isFeedingTime());
-  // Serial.print("is stop feeding?");
-  // Serial.println(stopfeeding);
-  
-  if ((isFeedingTime() && stopfeeding) || feednow) {
+  if ((isFeedingTime() && !stopfeeding) || feednow) {    
     Blynk.virtualWrite(V1, "Waktunya makanan diberikan");
     myservo.write(open_cover);
     unsigned long time_now = millis();
@@ -119,24 +106,6 @@ void myTimerEvent()
   Blynk.virtualWrite(V2, time_str);
 }
 
-void myTimerEvent2()
-{
-  //untuk debug saja
-  Serial.print("Makan Pagi= ");
-  Serial.print(pagi_hour);
-  Serial.print(":");
-  Serial.println(pagi_min);
-  Serial.print("Makan Siang= ");
-  Serial.print(siang_hour);
-  Serial.print(":");
-  Serial.println(siang_min);
-  Serial.print("Makan Malam= ");
-  Serial.print(malam_hour);
-  Serial.print(":");
-  Serial.println(malam_min);
-  Serial.println();
-}
-
 //------------------------------FUNCTION WHEN VIRTUAL PIN STATE CHANGES----------------------------
 
 // This function is called every time the Virtual Pin 3 state changes (feednow)
@@ -147,7 +116,6 @@ BLYNK_WRITE(V0) {
   }
 }
 
-
 // This function is called every time the Virtual Pin 3 state changes (jadwal makan pagi)
 BLYNK_WRITE(V3)
 {
@@ -155,13 +123,6 @@ BLYNK_WRITE(V3)
   TimeInputParam t(param);
   pagi_hour = t.getStartHour();
   pagi_min = t.getStartMinute();
-
-  //untuk debug
-  Serial.print("Update waktu Makan Pagi= ");
-  Serial.print(pagi_hour);
-  Serial.print(":");
-  Serial.println(pagi_min);
-  Serial.println();
 }
 
 // This function is called every time the Virtual Pin 4 state changes (jadwal makan siang)
@@ -171,13 +132,6 @@ BLYNK_WRITE(V4)
   TimeInputParam t(param);
   siang_hour = t.getStartHour();
   siang_min = t.getStartMinute();
-
-  //untuk debug
-  Serial.print("Update waktu Makan Siang= ");
-  Serial.print(siang_hour);
-  Serial.print(":");
-  Serial.println(siang_min);
-  Serial.println();
 }
 
 // This function is called every time the Virtual Pin 5 state changes (jadwal makan malam)
@@ -187,13 +141,6 @@ BLYNK_WRITE(V5)
   TimeInputParam t(param);
   malam_hour = t.getStartHour();
   malam_min = t.getStartMinute();
-
-  //untuk debug
-  Serial.print("Update waktu Makan Malam= ");
-  Serial.print(malam_hour);
-  Serial.print(":");
-  Serial.println(malam_min);
-  Serial.println();
 }
 
 //------------------------------OTHER FUNCTION----------------------------
@@ -204,18 +151,6 @@ bool isFeedingTime() {
 
   bool isfeeding = 0;
   // cek apakah sudah masuk waktu jadwal pemberian makanan
-
-  // untuk debug
-  // Serial.println("current time= ");
-  //   Serial.println(timeinfo.tm_hour);
-  //   Serial.println(timeinfo.tm_min);
-  //   Serial.println("jadwal siang= ");
-  //   Serial.println(siang_hour);
-  //   Serial.println(siang_min);
-  //   Serial.print("apakah sama? ");
-  //   Serial.println(timeinfo.tm_hour==siang_hour);
-  //   Serial.println();
-  
   if ((timeinfo.tm_hour == pagi_hour) && (timeinfo.tm_min == pagi_min)) {
     isfeeding = 1;
   } else if ((timeinfo.tm_hour == siang_hour) && (timeinfo.tm_min == siang_min)) {
@@ -226,13 +161,3 @@ bool isFeedingTime() {
 
   return isfeeding;
 }
-
-// void printLocalTime(){
-//   struct tm timeinfo;
-//   if(!getLocalTime(&timeinfo)){
-//     Serial.println("Failed to obtain time");
-//     return;
-//   }
-//   Serial.println(&timeinfo, "%A, %d %B %Y %H:%M:%S");
-//   //%A=Monday, %B=April  %d=17 %Y=2023 %H:%M:%S=10:40:24  
-// }

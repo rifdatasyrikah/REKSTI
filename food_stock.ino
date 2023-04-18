@@ -74,7 +74,6 @@ BLYNK_WRITE(V0)
     scale.power_up();
     reading = (double) scale.get_units();
     Blynk.virtualWrite(V1, reading);
-    Serial.println(reading, 1);
     if (reading <=50.0) {
       Blynk.logEvent("stock_alert", "Stock less than 50g, please restock soon");
     }
@@ -95,8 +94,6 @@ BLYNK_WRITE(V1) {
 // This function sends Arduino's uptime every second to Virtual Pin 2.
 void myTimerEvent()
 {
-  // You can send any value at any time.
-  // Please don't send more that 10 values per second.
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
     Serial.println("Failed to obtain time");
