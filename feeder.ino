@@ -20,60 +20,87 @@ const int   daylightOffset_sec = 25200;//GMT+7:00
 char ssid[] = "HUAWEI-UkGS";
 char pass[] = "selaludiganti";
 
-BlynkTimer timer;
+// konfigurasi untuk jadwal pemberian makanan---------------
+int pagi_hour, pagi_min;
+int siang_hour, siang_min;
+int malam_hour, malam_min;
+bool stopfeeding = false;
 
+// timer ---------------------------------------------
+BlynkTimer timer;
+BlynkTimer timer2;
+unsigned long interval = 10000;
+
+//servo motor -----------------------------------------
 #include <Servo.h>
 
 Servo myservo;  // create servo object to control a servo
-// twelve servo objects can be created on most boards
-
-// int pos = 0;    // variable to store the servo position
+const int pin_servo = 13;
+const int close_cover = 180;
+const int open_cover = 0;
 
 void setup() {
-  myservo.attach(13);  // attaches the servo on pin 13 to the servo object
-  
   Serial.begin(115200);
-  //awal ditutup
-  myservo.write(180);
 
+  //setup servo motor
+  myservo.attach(pin_servo);  // attaches the servo on pin 13 to the servo object
+  myservo.write(close_cover);
+  
+  //setup blynk
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
-
-  // Init and get the time
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  printLocalTime();
-
   // Setup a function myTimerEvent to be called every second
   timer.setInterval(1000L, myTimerEvent);
+  // Setup a function myTimerEvent2 to be called every 5 second
+  timer.setInterval(5000L, myTimerEvent2);
+  
+  //setup time: Init and get the time (ESP32 internal RTC)
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  // printLocalTime();
 }
 
 void loop() {
-
-  //run blynk  
+  //run blynk and timer  
   Blynk.run();
   timer.run();
+  timer2.run();
 
-  struct tm timeinfo;
-  getLocalTime(&timeinfo);
+  // untuk debug
+  // Serial.print("is feeding time?");
+  // Serial.println(isFeedingTime());
+  // Serial.print("is stop feeding?");
+  // Serial.println(stopfeeding);
 
-  //belum ditambah kondisi hasil pembacaan load cell
-  if ((timeinfo.tm_hour == hour_feeding) && (timeinfo.tm_min == minute_feeding)) {
-    Blynk.virtualWrite(V1, "Feeder dibuka, makanan dikeluarkan");
-    myservo.write(0);
-  } 
-
-  bool stopfeeding = 1;
-  // stopfeeding adalah kondisi selesai mengeluarkan makanan --> bisa berdasarkan pembacaan load cell mungkin
-  if (stopfeeding) {
-    Blynk.virtualWrite(V1, "Feeder ditutup, makanan selesai dikeluarkan");
-    myservo.write(180);
+  if (isFeedingTime() && stopfeeding==false) {
+    Blynk.virtualWrite(V1, "Waktunya makanan diberikan");
+    myservo.write(open_cover);
+    unsigned long time_now = millis();
+    while(millis() < time_now + interval){
+        //wait approx. [interval] ms
+    }
+    myservo.write(close_cover);
+    Blynk.virtualWrite(V1, "Selesai memberikan makanan");
+    time_now = millis();
+    while(millis() < time_now + interval){
+        //wait approx. [interval] ms
+    }
+    Blynk.virtualWrite(V1, "Menunggu waktu makan berikutnya");
+    stopfeeding = true;
   }
-
+  if (!isFeedingTime())  {
+    stopfeeding = false;
+  }
 }
 
+//------------------------------BLYNK CONNECTED----------------------------
+BLYNK_CONNECTED() { 
+  // when device is conneceted to Blynk Cloud... 
+  Blynk.syncAll(); 
+  // request the values for all datastreams that has "sync" setting enabled 
+}
+
+//------------------------------FUNCTION TIMER EVENT----------------------------
 void myTimerEvent()
 {
-  // You can send any value at any time.
-  // Please don't send more that 10 values per second.
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
     Serial.println("Failed to obtain time");
@@ -82,18 +109,114 @@ void myTimerEvent()
   char time_str[80]; 
   strftime(time_str,sizeof(time_str),"%A, %d %B %Y %H:%M:%S",&timeinfo);
   std::string str(time_str);
-
-  // std::cout << str;
-
   Blynk.virtualWrite(V2, time_str);
 }
 
-void printLocalTime(){
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return;
-  }
-  Serial.println(&timeinfo, "%A, %d %B %Y %H:%M:%S");
-  //%A=Monday, %B=April  %d=17 %Y=2023 %H:%M:%S=10:40:24  
+void myTimerEvent2()
+{
+  //untuk debug saja
+  Serial.print("Makan Pagi= ");
+  Serial.print(pagi_hour);
+  Serial.print(":");
+  Serial.println(pagi_min);
+  Serial.print("Makan Siang= ");
+  Serial.print(siang_hour);
+  Serial.print(":");
+  Serial.println(siang_min);
+  Serial.print("Makan Malam= ");
+  Serial.print(malam_hour);
+  Serial.print(":");
+  Serial.println(malam_min);
+  Serial.println();
 }
+
+//------------------------------FUNCTION WHEN VIRTUAL PIN STATE CHANGES----------------------------
+
+// This function is called every time the Virtual Pin 3 state changes (jadwal makan pagi)
+BLYNK_WRITE(V3)
+{
+  // Set incoming value from pin V3 to a variable
+  TimeInputParam t(param);
+  pagi_hour = t.getStartHour();
+  pagi_min = t.getStartMinute();
+
+  //untuk debug
+  Serial.print("Update waktu Makan Pagi= ");
+  Serial.print(pagi_hour);
+  Serial.print(":");
+  Serial.println(pagi_min);
+  Serial.println();
+}
+
+// This function is called every time the Virtual Pin 4 state changes (jadwal makan siang)
+BLYNK_WRITE(V4)
+{
+  // Set incoming value from pin V4 to a variable
+  TimeInputParam t(param);
+  siang_hour = t.getStartHour();
+  siang_min = t.getStartMinute();
+
+  //untuk debug
+  Serial.print("Update waktu Makan Siang= ");
+  Serial.print(siang_hour);
+  Serial.print(":");
+  Serial.println(siang_min);
+  Serial.println();
+}
+
+// This function is called every time the Virtual Pin 5 state changes (jadwal makan malam)
+BLYNK_WRITE(V5)
+{
+  // Set incoming value from pin V5 to a variable
+  TimeInputParam t(param);
+  malam_hour = t.getStartHour();
+  malam_min = t.getStartMinute();
+
+  //untuk debug
+  Serial.print("Update waktu Makan Malam= ");
+  Serial.print(malam_hour);
+  Serial.print(":");
+  Serial.println(malam_min);
+  Serial.println();
+}
+
+//------------------------------OTHER FUNCTION----------------------------
+
+bool isFeedingTime() {
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+
+  bool isfeeding = 0;
+  // cek apakah sudah masuk waktu jadwal pemberian makanan
+
+  // untuk debug
+  // Serial.println("current time= ");
+  //   Serial.println(timeinfo.tm_hour);
+  //   Serial.println(timeinfo.tm_min);
+  //   Serial.println("jadwal siang= ");
+  //   Serial.println(siang_hour);
+  //   Serial.println(siang_min);
+  //   Serial.print("apakah sama? ");
+  //   Serial.println(timeinfo.tm_hour==siang_hour);
+  //   Serial.println();
+  
+  if ((timeinfo.tm_hour == pagi_hour) && (timeinfo.tm_min == pagi_min)) {
+    isfeeding = 1;
+  } else if ((timeinfo.tm_hour == siang_hour) && (timeinfo.tm_min == siang_min)) {
+    isfeeding = 1;
+  } else if ((timeinfo.tm_hour == malam_hour) && (timeinfo.tm_min == malam_min)) {
+    isfeeding = 1;
+  }
+
+  return isfeeding;
+}
+
+// void printLocalTime(){
+//   struct tm timeinfo;
+//   if(!getLocalTime(&timeinfo)){
+//     Serial.println("Failed to obtain time");
+//     return;
+//   }
+//   Serial.println(&timeinfo, "%A, %d %B %Y %H:%M:%S");
+//   //%A=Monday, %B=April  %d=17 %Y=2023 %H:%M:%S=10:40:24  
+// }
